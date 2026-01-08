@@ -18,6 +18,7 @@ It is designed to be *simple, reliable, and beginner-friendly*, with all require
 - 🧾 Detailed log file for every run
 
 📂 Project Structure
+
 Downloadify/
 ├── downloadify.py
 
