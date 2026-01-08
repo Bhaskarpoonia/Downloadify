@@ -20,12 +20,19 @@ It is designed to be *simple, reliable, and beginner-friendly*, with all require
 📂 Project Structure
 Downloadify/
 ├── downloadify.py
+
 ├── README.md
+
 ├── LICENSE
+
 ├── tools/
+
 │ ├── yt-dlp.exe
+
 │ ├── ffmpeg.exe
+
 │ └── ffprobe.exe
+
 All required tools are included in the `tools/` folder.
 
 🖥️ Requirements
