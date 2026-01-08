@@ -38,7 +38,7 @@ No additional installations are required:
 🚀 How to Run
 1. Clone the repository:
 
-git clone https://github.com/YOUR_USERNAME/Downloadify.git
+git clone https://github.com/Bhaskarpoonia/Downloadify.git
 
 Navigate into the folder:
 cd Downloadify
