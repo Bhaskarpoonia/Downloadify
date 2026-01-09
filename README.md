@@ -44,9 +44,11 @@ No additional installations are required:
 - ffmpeg / ffprobe ✅ bundled
 
 🚀 How to Run
-1. Clone the repository:
+1. Download the release:
 
-git clone https://github.com/Bhaskarpoonia/Downloadify.git
+Download Downloadify.zip from releases tab
+
+Unzip the release Package 
 
 Navigate into the folder:
 cd Downloadify
