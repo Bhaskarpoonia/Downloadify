@@ -1,3 +1,7 @@
+Update: Hotfix V 0.1
+Please download the downloadify.py file from the repository as due to a mixup no metadata injection was done hence updated the files and enhanced the code for better maintainability
+
+
 Downloadify 🎵
 
 Downloadify is a Python-based GUI application that downloads music from YouTube using a Spotify playlist exported via *Exportify* (CSV format) and automatically organizes the songs into a local MP3 library.
