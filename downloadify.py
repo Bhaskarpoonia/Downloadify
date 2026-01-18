@@ -1,8 +1,14 @@
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
-import csv, subprocess, os, re, json, threading
+import csv
+import subprocess
+import re
+import json
+import threading
 from pathlib import Path
 from datetime import datetime
+
+# ================= BASIC CONFIG =================
 
 APP_NAME = "Downloadify"
 TAGLINE = "Exportify CSV → MP3 Downloader"
@@ -11,7 +17,7 @@ DURATION_TOLERANCE = 3
 
 APP_DIR = Path(__file__).parent
 
-# ---------------- CONFIG ----------------
+# ================= CONFIG =================
 
 def load_config():
     p = APP_DIR / CONFIG_FILE
@@ -23,13 +29,16 @@ def load_config():
     return {}
 
 def save_config(cfg):
-    (APP_DIR / CONFIG_FILE).write_text(json.dumps(cfg, indent=2), encoding="utf-8")
+    (APP_DIR / CONFIG_FILE).write_text(
+        json.dumps(cfg, indent=2),
+        encoding="utf-8"
+    )
 
 config = load_config()
 LIBRARY_DEFAULT = config.get("library_path", str(APP_DIR / "library"))
 DARK_MODE = config.get("dark_mode", True)
 
-# ---------------- THEMES ----------------
+# ================= THEMES =================
 
 DARK = {
     "bg": "#0f172a",
@@ -49,7 +58,7 @@ LIGHT = {
     "danger": "#dc2626"
 }
 
-# ---------------- HELPERS ----------------
+# ================= HELPERS =================
 
 def clean(text):
     return re.sub(r'[\\/*?:"<>|]', "", text.strip()) if text else ""
@@ -63,19 +72,19 @@ def get(row, *keys):
 def expected_duration(row):
     if row.get("Duration (ms)", "").isdigit():
         return int(row["Duration (ms)"]) / 1000
-    try:
-        return float(row.get("Duration", ""))
-    except Exception:
-        return None
+    return None
 
 def audio_duration(path):
     try:
         r = subprocess.run(
-            ["ffprobe", "-v", "error",
-             "-show_entries", "format=duration",
-             "-of", "default=nokey=1:noprint_wrappers=1",
-             path],
-            capture_output=True, text=True
+            [
+                "ffprobe", "-v", "error",
+                "-show_entries", "format=duration",
+                "-of", "default=nokey=1:noprint_wrappers=1",
+                str(path)
+            ],
+            capture_output=True,
+            text=True
         )
         return float(r.stdout.strip())
     except Exception:
@@ -90,7 +99,7 @@ def get_failed_tracks(log_path):
             failed.add(line.replace("FAILED:", "").strip())
     return failed
 
-# ---------------- SEARCH STRATEGY ----------------
+# ================= SEARCH STRATEGY =================
 
 SEARCHES = [
     "ytsearch1:{title} {artist} official audio",
@@ -98,7 +107,7 @@ SEARCHES = [
     "ytsearch1:{title} {artist} topic",
 ]
 
-# ---------------- PIPELINE ----------------
+# ================= PIPELINE =================
 
 def run_pipeline(csv_path, library, log_box, progress, stop_flag, retry_failed=False):
     library = Path(library)
@@ -108,43 +117,49 @@ def run_pipeline(csv_path, library, log_box, progress, stop_flag, retry_failed=F
     log = open(log_file, "a", encoding="utf-8")
 
     log.write("\n" + "=" * 60 + "\n")
-    log.write(f"Run started: {datetime.now()}\nCSV: {csv_path}\n")
+    log.write(f"Run started: {datetime.now()}\n")
+    log.write(f"CSV: {csv_path}\n")
     if retry_failed:
         log.write("MODE: RETRY FAILED ONLY\n")
 
     rows = list(csv.DictReader(open(csv_path, encoding="utf-8")))
     failed_only = get_failed_tracks(log_file) if retry_failed else set()
+
     progress["maximum"] = len(rows)
 
-    for i, row in enumerate(rows, start=1):
+    for index, row in enumerate(rows, start=1):
         if stop_flag["stop"]:
             log.write("STOPPED BY USER\n")
             break
 
         title = get(row, "Track Name")
         artist = get(row, "Artist Name(s)")
+        album = get(row, "Album Name")
+        date = get(row, "Release Date")
+        genre = get(row, "Genres")
+        label = get(row, "Record Label")
         dur = expected_duration(row)
 
         if not title or not artist:
             continue
 
         if retry_failed and title not in failed_only:
-            progress["value"] = i
+            progress["value"] = index
             continue
 
-        out = library / f"{title}.mp3"
-        if out.exists() and not retry_failed:
-            progress["value"] = i
+        output = library / f"{title}.mp3"
+        if output.exists() and not retry_failed:
+            progress["value"] = index
             continue
 
         success = False
 
-        for s in SEARCHES:
+        for template in SEARCHES:
             if stop_flag["stop"]:
                 break
 
-            query = s.format(title=title, artist=artist)
-            tmp = library / f".tmp_{i}.mp3"
+            query = template.format(title=title, artist=artist)
+            temp = library / f".tmp_{index}.mp3"
 
             log_box.insert(tk.END, f"Searching: {query}\n")
             log_box.see(tk.END)
@@ -154,25 +169,35 @@ def run_pipeline(csv_path, library, log_box, progress, stop_flag, retry_failed=F
                 "--no-cache-dir",
                 "--force-ipv4",
                 "--match-filter", "duration > 60 & duration < 900",
+
+                "--add-metadata",
+                "--embed-thumbnail",
+                "--convert-thumbnails", "jpg",
+
+                "--parse-metadata", f"title:{title}",
+                "--parse-metadata", f"artist:{artist}",
+                "--parse-metadata", f"album:{album}",
+                "--parse-metadata", f"date:{date}",
+                "--parse-metadata", f"genre:{genre}",
+                "--parse-metadata", f"label:{label}",
+
                 "-f", "bestaudio",
                 "-x", "--audio-format", "mp3",
                 "--audio-quality", "0",
-                "--embed-thumbnail",
-                "--convert-thumbnails", "jpg",
                 "--no-playlist",
-                "-o", str(tmp)
+                "-o", str(temp)
             ])
 
-            if not tmp.exists():
+            if not temp.exists():
                 continue
 
             if dur:
-                actual = audio_duration(tmp)
+                actual = audio_duration(temp)
                 if actual is None or abs(actual - dur) > DURATION_TOLERANCE:
-                    tmp.unlink(missing_ok=True)
+                    temp.unlink(missing_ok=True)
                     continue
 
-            tmp.rename(out)
+            temp.rename(output)
             log.write(f"DOWNLOADED: {title}\n")
             success = True
             break
@@ -180,13 +205,13 @@ def run_pipeline(csv_path, library, log_box, progress, stop_flag, retry_failed=F
         if not success:
             log.write(f"FAILED: {title}\n")
 
-        progress["value"] = i
+        progress["value"] = index
 
     log.write(f"Finished: {datetime.now()}\n")
     log.close()
-    messagebox.showinfo("Done", "Process complete. Check log file.")
+    messagebox.showinfo("Done", "Download complete. Check log file.")
 
-# ---------------- GUI ----------------
+# ================= GUI =================
 
 root = tk.Tk()
 root.title(APP_NAME)
@@ -196,16 +221,16 @@ csv_path = tk.StringVar()
 library_path = tk.StringVar(value=LIBRARY_DEFAULT)
 stop_flag = {"stop": False}
 
-# ---------------- THEME APPLY ----------------
+# ================= THEME =================
 
 def apply_theme():
     theme = DARK if config.get("dark_mode", True) else LIGHT
     root.configure(bg=theme["bg"])
     frame.configure(bg=theme["bg"])
     log_box.configure(bg=theme["log"], fg=theme["fg"])
-    for widget in themed_widgets:
+    for w in themed_widgets:
         try:
-            widget.configure(bg=theme.get("entry", theme["bg"]), fg=theme["fg"])
+            w.configure(bg=theme["entry"], fg=theme["fg"])
         except Exception:
             pass
 
@@ -214,7 +239,7 @@ def toggle_theme():
     save_config(config)
     apply_theme()
 
-# ---------------- UI ----------------
+# ================= UI =================
 
 frame = tk.Frame(root, padx=10, pady=10)
 frame.pack(fill=tk.BOTH, expand=True)
